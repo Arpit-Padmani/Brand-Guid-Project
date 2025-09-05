@@ -25,7 +25,7 @@ st.title("🧪 Brand Guide AI - Fresher Test")
 st.write("Upload brand guideline PDF + social media post to check compliance.")
 
 # --- Configure Gemini API ---
-genai.configure(api_key="AIzaSyBabE4zEcG0nOiXk2GRiL2Uu-1_feMCivQ")  # replace with your key or env var
+genai.configure(api_key="")  # replace with your key or env var
 
 def export_results_to_pdf(results, filename="compliance_report.pdf"):
     doc = SimpleDocTemplate(filename, pagesize=A4)
