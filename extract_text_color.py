@@ -1,17 +1,14 @@
 import cv2
 import pytesseract
 import numpy as np
-from sklearn.cluster import DBSCAN
 import webcolors
+from sklearn.cluster import KMeans
 
-# Path to Tesseract OCR (update if needed)
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 def closest_color(requested_color):
-    """Find the closest CSS3 color name"""
     min_distance = float("inf")
     closest_name = None
-
     for name in webcolors.names("css3"):
         r_c, g_c, b_c = webcolors.name_to_rgb(name)
         distance = (r_c - requested_color[0]) ** 2 + \
@@ -22,61 +19,42 @@ def closest_color(requested_color):
             closest_name = name
     return closest_name
 
-def extract_text_colors(image_path):
-    # Load image
+def get_dominant_background_color(image_path, n_clusters=3):
     img = cv2.imread(image_path)
     rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # OCR detect text regions
     data = pytesseract.image_to_data(rgb_img, output_type=pytesseract.Output.DICT)
 
-    collected_colors = []
-
+    mask = np.ones(rgb_img.shape[:2], dtype=np.uint8) * 255  # start with full background
     for i in range(len(data['text'])):
         if data['text'][i].strip() != "":
             (x, y, w, h) = (data['left'][i], data['top'][i], data['width'][i], data['height'][i])
-            word_region = rgb_img[y:y+h, x:x+w]
+            mask[y:y+h, x:x+w] = 0  # mask text region as non-background
 
-            if word_region.size > 0:
-                # Convert to grayscale for thresholding
-                gray = cv2.cvtColor(word_region, cv2.COLOR_RGB2GRAY)
-                _, mask = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
+    # Extract only background pixels
+    background_pixels = rgb_img[mask > 0]
 
-                # Keep only text pixels
-                text_pixels = word_region[mask > 0]
+    if len(background_pixels) == 0:
+        return None
 
-                if len(text_pixels) > 0:
-                    avg_color = np.mean(text_pixels, axis=0)
-                    collected_colors.append(avg_color)
+    # Cluster background colors
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    kmeans.fit(background_pixels)
+    counts = np.bincount(kmeans.labels_)
+    dominant_color = kmeans.cluster_centers_[np.argmax(counts)].astype(int)
 
-    if len(collected_colors) == 0:
-        return []
+    hex_color = '#%02x%02x%02x' % tuple(dominant_color)
+    color_name = closest_color(dominant_color)
 
-    collected_colors = np.array(collected_colors)
-
-    # Cluster dynamically
-    clustering = DBSCAN(eps=25, min_samples=2).fit(collected_colors)
-    unique_labels = set(clustering.labels_)
-    results = []
-
-    for label in unique_labels:
-        if label == -1:
-            continue  # skip noise
-        cluster_points = collected_colors[clustering.labels_ == label]
-        avg_cluster_color = np.mean(cluster_points, axis=0).astype(int)
-
-        hex_color = '#%02x%02x%02x' % tuple(avg_cluster_color)
-        rgb = tuple(avg_cluster_color)
-        color_name = closest_color(rgb)
-        results.append((hex_color, rgb, color_name))
-
-    return results
-
+    return hex_color, tuple(dominant_color), color_name
 
 # Example usage
-image_path = "test4.png"  # your image path
-colors = extract_text_colors(image_path)
+image_path = "test4.png"
+dominant_bg = get_dominant_background_color(image_path)
 
-print("Final distinct text colors with names:")
-for hex_color, rgb, name in colors:
-    print(f"HEX: {hex_color} | RGB: {rgb} | Name: {name}")
+if dominant_bg:
+    hex_color, rgb, name = dominant_bg
+    print(f"Dominant background color: HEX={hex_color} | RGB={rgb} | Name={name}")
+else:
+    print("No background detected")
