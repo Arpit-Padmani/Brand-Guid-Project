@@ -34,9 +34,11 @@ for page_index in range(len(pdf_file)):
     for image_index, img in enumerate(image_list, start=1):
         # Get the XREF of the image
         xref = img[0]
+        print(img)
         # Extract the image bytes
         base_image = pdf_file.extract_image(xref)
         image_bytes = base_image["image"]
+        # print(image_bytes)
         # Get the image extension
         image_ext = base_image["ext"]
         # Load it to PIL
