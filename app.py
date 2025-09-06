@@ -29,7 +29,7 @@ st.title("🎨 Brand Guide AI - Fresher Test")
 st.write("Upload brand guideline PDF + social media post to check compliance.")
 
 # --- Configure Gemini API ---
-genai.configure(api_key="AIzaSyCvrd2OnShkywnKJKbRF63JE3zJQEDRaq4")  # replace with your key or env var
+genai.configure(api_key="")  # replace with your key or env var
 
 def export_results_to_pdf(results, filename="Brand-Check-Report.pdf"):
     styles = getSampleStyleSheet()
