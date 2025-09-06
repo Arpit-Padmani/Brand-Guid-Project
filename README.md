@@ -39,11 +39,7 @@ brand_guide_checker/
 │   ├─ Extarct_all_color_from_image.py
 │   ├─ extract_images_from_pdf.py
 │   ├─ extract_text_from_image.py
-│   └─ get
-
-https://github.com/user-attachments/assets/e52cb981-0843-4af2-9907-99cdf52f13aa
-
-_font_style_image.py
+│   └─ get_font_style_image.py
 ├─ .env                       # Store your API key here (not committed)
 └─ Brand-Check-Report.pdf     # Example exported report
 
