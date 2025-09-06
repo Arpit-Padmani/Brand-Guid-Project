@@ -14,9 +14,9 @@ from nltk.tokenize import word_tokenize
 from sentence_transformers import SentenceTransformer
 from PIL import Image
 from collections import Counter
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.pagesizes import A4
 
 # --- Streamlit Page Config ---
 st.set_page_config(page_title="Brand Guide Checker", layout="centered")
@@ -25,35 +25,48 @@ st.title("🧪 Brand Guide AI - Fresher Test")
 st.write("Upload brand guideline PDF + social media post to check compliance.")
 
 # --- Configure Gemini API ---
-genai.configure(api_key="AIzaSyBabE4zEcG0nOiXk2GRiL2Uu-1_feMCivQ")  # replace with your key or env var
+genai.configure(api_key="AIzaSyCvrd2OnShkywnKJKbRF63JE3zJQEDRaq4")  # replace with your key or env var
 
-def export_results_to_pdf(results, filename="compliance_report.pdf"):
-    doc = SimpleDocTemplate(filename, pagesize=A4)
+def export_results_to_pdf(results, filename="Brand-Check-Report.pdf"):
     styles = getSampleStyleSheet()
+    
+    doc = SimpleDocTemplate(
+        filename,
+        pagesize=A4,
+        title="Brand Check Report",
+        author="Brand Guide AI"
+    )
     flow = []
 
-    flow.append(Paragraph("Brand Guide Compliance Report", styles["Heading1"]))
+    flow.append(Paragraph("Brand Check Report", styles["Heading1"]))
     flow.append(Spacer(1, 12))
 
     for k, v in results.items():
-        if isinstance(v, dict):  # text compliance
-            status = "✅ PASS" if v["status"] else "❌ FAIL"
+        if isinstance(v, dict) and "status" in v:  # dict with status
+            status = "PASS" if v.get("status") else " FAIL" if v.get("status") is not None else f" {v.get('status')}"
             flow.append(Paragraph(f"<b>{k}:</b> {status}", styles["Normal"]))
-            flow.append(Paragraph(f"✅ Matched words: {', '.join(v['matched']) if v['matched'] else 'None'}", styles["Normal"]))
-            flow.append(Paragraph(f"❌ Missing words: {', '.join(v['missing']) if v['missing'] else 'None'}", styles["Normal"]))
-        else:  # color/logo
-            if v is True:
-                status = "✅ PASS"
-            elif v is False:
-                status = "❌ FAIL"
-            else:
-                status = f"⚠️ {v}"
-            flow.append(Paragraph(f"<b>{k}:</b> {status}", styles["Normal"]))
+
+            # Text compliance
+            if "matched" in v or "missing" in v:
+                flow.append(Paragraph(f"-> Matched: {', '.join(v.get('matched', [])) or 'None'}", styles["Normal"]))
+                flow.append(Paragraph(f"-> Missing: {', '.join(v.get('missing', [])) or 'None'}", styles["Normal"]))
+            
+            # Color compliance
+            if "colors" in v:
+                matched_colors = v.get("colors", [])
+                if matched_colors:
+                    color_text = ", ".join([f"{c.get('name','Unknown')} ({c.get('hex')})" for c in matched_colors])
+        else:  # fallback for string or other types
+            flow.append(Paragraph(f"<b>{k}:</b> {v}", styles["Normal"]))
 
         flow.append(Spacer(1, 8))
 
     doc.build(flow)
     return filename
+
+
+def rgb_to_hex(rgb):
+    return '#{:02x}{:02x}{:02x}'.format(*rgb)
 
 def closest_color(requested_color):
     min_distance = float("inf")
@@ -68,11 +81,21 @@ def closest_color(requested_color):
             closest_name = name
     return closest_name
 
-def rgb_to_hex(rgb):
-    return "#{:02x}{:02x}{:02x}".format(*rgb)
+def closest_color(requested_color):
+    min_distance = float("inf")
+    closest_name = None
+    for name in webcolors.names("css3"):
+        r_c, g_c, b_c = webcolors.name_to_rgb(name)
+        distance = (r_c - requested_color[0]) ** 2 + \
+                   (g_c - requested_color[1]) ** 2 + \
+                   (b_c - requested_color[2]) ** 2
+        if distance < min_distance:
+            min_distance = distance
+            closest_name = name
+    return closest_name
 
 def extract_all_colors(image_path, top_n=None):
-    """Extract all colors from an image with frequency percentage."""
+    """Extract colors with RGB, HEX, name, and percentage."""
     img = Image.open(image_path).convert("RGB")
     pixels = list(img.getdata())
     total_pixels = len(pixels)
@@ -84,43 +107,55 @@ def extract_all_colors(image_path, top_n=None):
     for color, count in most_common:
         rgb = tuple(map(int, color))
         percent = (count / total_pixels) * 100
+        color_name = closest_color(rgb)
+       
         result.append({
             "rgb": rgb,
             "hex": rgb_to_hex(rgb),
+            "name": color_name,
             "percent": round(percent, 2)
         })
-
     return result
 
 def check_color_compliance(image_path, color_rules):
     results = {}
-
-    # Get dominant background color
-    bg_color = get_dominant_background_color(image_path)
-
-    # Get all colors from image
     all_colors = extract_all_colors(image_path, top_n=30)
     extracted_hex = [c["hex"].lower() for c in all_colors]
+    extracted_names = [c["name"].lower() for c in all_colors]
+    bg_color = get_dominant_background_color(image_path)
 
     for rule in color_rules:
         expected = rule["expected_value"]
         expected_list = expected if isinstance(expected, list) else [expected]
+        expected_list = [str(e).lower() for e in expected_list]
 
-        # Case 1: Rule explicitly mentions dominant
-        if "dominant" in rule["rule_name"].lower() or "dominant" in str(expected).lower():
-            if bg_color:
-                hex_color, rgb, name = bg_color
-                if any(exp.lower() in hex_color.lower() or exp.lower() in name.lower() for exp in expected_list):
-                    results[f"{rule['rule_name']}"] = True
+        rule_result = {"colors": [], "matched": [], "missing": [], "status": False}
+
+        # Check dominant color
+        if "dominant" in rule["rule_name"].lower() and bg_color:
+            hex_color, rgb, name = bg_color
+            rule_result["colors"].append({"hex": hex_color, "name": name})
+            for exp in expected_list:
+                if exp in hex_color.lower() or exp in name.lower():
+                    rule_result["matched"].append(f"{name} ({hex_color})")
                 else:
-                    results[f"{rule['rule_name']}"] = False
-            else:
-                results[f"{rule['rule_name']}"] = "⚠️ Could not detect dominant color"
-
-        # Case 2: General brand colors (check across all extracted colors)
+                    rule_result["missing"].append(exp)
+            rule_result["status"] = True if rule_result["matched"] else False
         else:
-            found = all(any(exp.lower() == h for h in extracted_hex) for exp in expected_list)
-            results[f"{rule['rule_name']}"] = found
+            # General colors
+            for c in all_colors:
+                rule_result["colors"].append({"hex": c["hex"], "name": c["name"]})
+                for exp in expected_list:
+                    if exp in c["hex"].lower() or exp in c["name"].lower():
+                        if f"{c['name']} ({c['hex']})" not in rule_result["matched"]:
+                            rule_result["matched"].append(f"{c['name']} ({c['hex']})")
+            # Missing expected colors
+            for exp in expected_list:
+                if not any(exp in m.lower() for m in rule_result["matched"]):
+                    rule_result["missing"].append(exp)
+            rule_result["status"] = True if rule_result["matched"] else False
+
+        results[rule["rule_name"]] = rule_result
 
     return results
 
@@ -244,6 +279,7 @@ if image_file:
     # --- Text Checks (using your OCR + word matcher) ---
     if "text" in rules_grouped:
         extracted_text = extract_text_from_image(temp_path)
+        # st.write(extracted_text)
         all_matched = set()
         all_missing = set()
 
@@ -263,33 +299,59 @@ if image_file:
     if "logo" in rules_grouped:
         for rule in rules_grouped["logo"]:
             results[f"{rule['rule_name']}"] = "⚠️ Logo check not implemented yet"
-
-
 # --- Output Results ---
 if results:
     st.subheader("✅ Compliance Report")
     for k, v in results.items():
-        if isinstance(v, dict):  # text compliance
+        if isinstance(v, dict) and "status" in v and "matched" in v and "colors" not in v:  # text compliance
             if v["status"]:
                 st.success(f"✅ {k}")
             else:
                 st.error(f"❌ {k}")
-            st.markdown(f"- ✅ Matched words: {', '.join(v['matched']) if v['matched'] else 'None'}")
-            st.markdown(f"- ❌ Missing words: {', '.join(v['missing']) if v['missing'] else 'None'}")
-        else:  # color/logo rules
+            st.markdown(f"- ✅ Matched words: {', '.join(v.get('matched', [])) or 'None'}")
+            st.markdown(f"- ❌ Missing words: {', '.join(v.get('missing', [])) or 'None'}")
+        elif isinstance(v, dict) and "colors" in v:  # color compliance
+            if v.get("status") is True:
+                st.success(f"✅ {k}")
+            elif v.get("status") is False:
+                st.error(f"❌ {k}")
+            else:
+                st.warning(f"{k}: {v.get('status')}")
+
+            matched_colors = v.get("colors", [])
+            if matched_colors:
+                # Show all detected colors
+                color_text = ", ".join([f"{c.get('name','Unknown')} ({c.get('hex')})" for c in matched_colors])
+              
+                # Compute matched vs missing colors
+                expected_hex_list = [
+                    c.lower() 
+                    for rule in rules_grouped.get("color", []) 
+                    for c in (rule["expected_value"] if isinstance(rule["expected_value"], list) else [rule["expected_value"]])
+                ]
+                detected_hex_list = [c["hex"].lower() for c in matched_colors]
+                matched_colors_list = [c for c in detected_hex_list if c in expected_hex_list]
+                missing_colors_list = [c for c in expected_hex_list if c not in detected_hex_list]
+
+                # Display matched/missing colors separately
+                st.markdown(f"- ✅ Matched colors: {', '.join(matched_colors_list) or 'None'}")
+                st.markdown(f"- ❌ Missing colors: {', '.join(missing_colors_list) or 'None'}")
+        else:  # logo / fallback
             if v is True:
                 st.success(f"✅ {k}")
             elif v is False:
                 st.error(f"❌ {k}")
             else:
                 st.warning(f"{k}: {v}")
+
     # --- Export Results ---
     export = st.radio("Export Results As:", ["None", "JSON", "PDF"])
+    file_name = "Brand-Check-Report"    
     if export == "JSON":
         json_data = json.dumps(results, indent=2)
-        st.download_button("📥 Download JSON Report", json_data, file_name="report.json")
+        st.download_button("📥 Download JSON Report", json_data, file_name=f"{file_name}.json")
     elif export == "PDF":
         pdf_path = "compliance_report.pdf"
         export_results_to_pdf(results, pdf_path)
         with open(pdf_path, "rb") as f:
-            st.download_button("📥 Download PDF Report", f, file_name="compliance_report.pdf", mime="application/pdf")
+            st.download_button("📥 Download PDF Report", f, file_name=f"{file_name}.pdf", mime="application/pdf")
