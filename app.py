@@ -19,13 +19,17 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import A4
 
 # --- Streamlit Page Config ---
-st.set_page_config(page_title="Brand Guide Checker", layout="centered")
+st.set_page_config(
+    page_title="Brand Guide Checker", 
+    page_icon="🎨",
+    layout="centered"
+)
 
-st.title("🧪 Brand Guide AI - Fresher Test")
+st.title("🎨 Brand Guide AI - Fresher Test")
 st.write("Upload brand guideline PDF + social media post to check compliance.")
 
 # --- Configure Gemini API ---
-genai.configure(api_key="")  # replace with your key or env var
+genai.configure(api_key="AIzaSyCvrd2OnShkywnKJKbRF63JE3zJQEDRaq4")  # replace with your key or env var
 
 def export_results_to_pdf(results, filename="Brand-Check-Report.pdf"):
     styles = getSampleStyleSheet()
@@ -63,7 +67,6 @@ def export_results_to_pdf(results, filename="Brand-Check-Report.pdf"):
 
     doc.build(flow)
     return filename
-
 
 def rgb_to_hex(rgb):
     return '#{:02x}{:02x}{:02x}'.format(*rgb)
@@ -265,93 +268,96 @@ if pdf_file:
     # st.code(rules_json, language="json")
     rules_grouped = group_rules(rules_json)
 # --- Process Image ---
-results = {}
+    results = {}
 
-if image_file:
-    temp_path = "temp_uploaded.png"
-    image = Image.open(image_file)
-    image.save(temp_path)
+    if image_file:
+        temp_path = "temp_uploaded.png"
+        image = Image.open(image_file)
+        image.save(temp_path)
 
-    # --- Color Checks (using your function) ---
-    if "color" in rules_grouped:
-        color_results = check_color_compliance(temp_path, rules_grouped["color"])
-        results.update(color_results)
-    # --- Text Checks (using your OCR + word matcher) ---
-    if "text" in rules_grouped:
-        extracted_text = extract_text_from_image(temp_path)
-        # st.write(extracted_text)
-        all_matched = set()
-        all_missing = set()
+        # --- Color Checks (using your function) ---
+        if "color" in rules_grouped:
+            color_results = check_color_compliance(temp_path, rules_grouped["color"])
+            results.update(color_results)
+        # --- Text Checks (using your OCR + word matcher) ---
+        if "text" in rules_grouped:
+            extracted_text = extract_text_from_image(temp_path)
+            # st.write(extracted_text)
+            all_matched = set()
+            all_missing = set()
 
-        for rule in rules_grouped["text"]:
-            expected = str(rule["expected_value"])
-            matched, missing = check_word_level(extracted_text, expected)
-            all_matched.update(matched)
-            all_missing.update(missing)
+            for rule in rules_grouped["text"]:
+                expected = str(rule["expected_value"])
+                matched, missing = check_word_level(extracted_text, expected)
+                all_matched.update(matched)
+                all_missing.update(missing)
 
-        results["Text Compliance"] = {
-            "status": len(all_missing) >= 0,  # ✅ only if all expected words matched
-            "matched": list(all_matched),
-            "missing": list(all_missing)
-        }
+            results["Text Compliance"] = {
+                "status": len(all_missing) >= 0,  # ✅ only if all expected words matched
+                "matched": list(all_matched),
+                "missing": list(all_missing)
+            }
 
-    # --- Logo Checks (still placeholder) ---
-    if "logo" in rules_grouped:
-        for rule in rules_grouped["logo"]:
-            results[f"{rule['rule_name']}"] = "⚠️ Logo check not implemented yet"
-# --- Output Results ---
-if results:
-    st.subheader("✅ Compliance Report")
-    for k, v in results.items():
-        if isinstance(v, dict) and "status" in v and "matched" in v and "colors" not in v:  # text compliance
-            if v["status"]:
-                st.success(f"✅ {k}")
-            else:
-                st.error(f"❌ {k}")
-            st.markdown(f"- ✅ Matched words: {', '.join(v.get('matched', [])) or 'None'}")
-            st.markdown(f"- ❌ Missing words: {', '.join(v.get('missing', [])) or 'None'}")
-        elif isinstance(v, dict) and "colors" in v:  # color compliance
-            if v.get("status") is True:
-                st.success(f"✅ {k}")
-            elif v.get("status") is False:
-                st.error(f"❌ {k}")
-            else:
-                st.warning(f"{k}: {v.get('status')}")
+        # --- Logo Checks (still placeholder) ---
+        if "logo" in rules_grouped:
+            for rule in rules_grouped["logo"]:
+                results[f"{rule['rule_name']}"] = "⚠️ Logo check not implemented yet"
+    # --- Output Results ---
+    if results:
+        st.subheader("✅ Compliance Report")
+        for k, v in results.items():
+            if isinstance(v, dict) and "status" in v and "matched" in v and "colors" not in v:  # text compliance
+                if v["status"]:
+                    st.success(f"✅ {k}")
+                else:
+                    st.error(f"❌ {k}")
+                st.markdown(f"- ✅ Matched words: {', '.join(v.get('matched', [])) or 'None'}")
+                st.markdown(f"- ❌ Missing words: {', '.join(v.get('missing', [])) or 'None'}")
+            elif isinstance(v, dict) and "colors" in v:  # color compliance
+                if v.get("status") is True:
+                    st.success(f"✅ {k}")
+                elif v.get("status") is False:
+                    st.error(f"❌ {k}")
+                else:
+                    st.warning(f"{k}: {v.get('status')}")
 
-            matched_colors = v.get("colors", [])
-            if matched_colors:
-                # Show all detected colors
-                color_text = ", ".join([f"{c.get('name','Unknown')} ({c.get('hex')})" for c in matched_colors])
-              
-                # Compute matched vs missing colors
-                expected_hex_list = [
-                    c.lower() 
-                    for rule in rules_grouped.get("color", []) 
-                    for c in (rule["expected_value"] if isinstance(rule["expected_value"], list) else [rule["expected_value"]])
-                ]
-                detected_hex_list = [c["hex"].lower() for c in matched_colors]
-                matched_colors_list = [c for c in detected_hex_list if c in expected_hex_list]
-                missing_colors_list = [c for c in expected_hex_list if c not in detected_hex_list]
+                matched_colors = v.get("colors", [])
+                if matched_colors:
+                    # Show all detected colors
+                    color_text = ", ".join([f"{c.get('name','Unknown')} ({c.get('hex')})" for c in matched_colors])
+                
+                    # Compute matched vs missing colors
+                    expected_hex_list = [
+                        c.lower() 
+                        for rule in rules_grouped.get("color", []) 
+                        for c in (rule["expected_value"] if isinstance(rule["expected_value"], list) else [rule["expected_value"]])
+                    ]
+                    detected_hex_list = [c["hex"].lower() for c in matched_colors]
+                    matched_colors_list = [c for c in detected_hex_list if c in expected_hex_list]
+                    missing_colors_list = [c for c in expected_hex_list if c not in detected_hex_list]
 
-                # Display matched/missing colors separately
-                st.markdown(f"- ✅ Matched colors: {', '.join(matched_colors_list) or 'None'}")
-                st.markdown(f"- ❌ Missing colors: {', '.join(missing_colors_list) or 'None'}")
-        else:  # logo / fallback
-            if v is True:
-                st.success(f"✅ {k}")
-            elif v is False:
-                st.error(f"❌ {k}")
-            else:
-                st.warning(f"{k}: {v}")
+                    # Display matched/missing colors separately
+                    st.markdown(f"- ✅ Matched colors: {', '.join(matched_colors_list) or 'None'}")
+                    st.markdown(f"- ❌ Missing colors: {', '.join(missing_colors_list) or 'None'}")
+            else:  # logo / fallback
+                if v is True:
+                    st.success(f"✅ {k}")
+                elif v is False:
+                    st.error(f"❌ {k}")
+                else:
+                    st.warning(f"{k}: {v}")
 
-    # --- Export Results ---
-    export = st.radio("Export Results As:", ["None", "JSON", "PDF"])
-    file_name = "Brand-Check-Report"    
-    if export == "JSON":
-        json_data = json.dumps(results, indent=2)
-        st.download_button("📥 Download JSON Report", json_data, file_name=f"{file_name}.json")
-    elif export == "PDF":
-        pdf_path = "compliance_report.pdf"
-        export_results_to_pdf(results, pdf_path)
-        with open(pdf_path, "rb") as f:
-            st.download_button("📥 Download PDF Report", f, file_name=f"{file_name}.pdf", mime="application/pdf")
+        # --- Export Results ---
+        export = st.radio("Export Results As:", ["None", "JSON", "PDF"])
+        file_name = "Brand-Check-Report"    
+        if export == "JSON":
+            json_data = json.dumps(results, indent=2)
+            st.download_button("📥 Download JSON Report", json_data, file_name=f"{file_name}.json")
+        elif export == "PDF":
+            pdf_path = "compliance_report.pdf"
+            export_results_to_pdf(results, pdf_path)
+            with open(pdf_path, "rb") as f:
+                st.download_button("📥 Download PDF Report", f, file_name=f"{file_name}.pdf", mime="application/pdf")
+else:
+    if image_file:
+        st.warning("⚠️ Please upload the Brand Guideline PDF first before uploading an image.")
