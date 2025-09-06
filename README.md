@@ -1,7 +1,7 @@
 
 # 🎨 Brand Guide AI 
 
-A **Streamlit-based AI tool** to check compliance of social media posts against brand guidelines. Upload a **brand guideline PDF** and an **image**, and the app will verify **color, text, and logo compliance** using AI and image processing.
+A **Streamlit-based AI tool** to check compliance of social media posts against brand guidelines. Upload a **brand guideline PDF** and an **image**, and the app will verify **color, text** using AI and image processing.
 
 ---
 
