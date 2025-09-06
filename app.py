@@ -9,6 +9,9 @@ import os
 import google.generativeai as genai
 import re
 import webcolors
+from dotenv import load_dotenv
+import os
+
 from sklearn.cluster import KMeans
 from nltk.tokenize import word_tokenize
 from sentence_transformers import SentenceTransformer
@@ -18,6 +21,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.pagesizes import A4
 
+load_dotenv()
 # --- Streamlit Page Config ---
 st.set_page_config(
     page_title="Brand Guide Checker", 
@@ -29,7 +33,7 @@ st.title("🎨 Brand Guide AI - Fresher Test")
 st.write("Upload brand guideline PDF + social media post to check compliance.")
 
 # --- Configure Gemini API ---
-genai.configure(api_key="")  # replace with your key or env var
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))  # replace with your key or env var
 
 def export_results_to_pdf(results, filename="Brand-Check-Report.pdf"):
     styles = getSampleStyleSheet()
