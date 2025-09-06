@@ -25,7 +25,7 @@ st.title("🧪 Brand Guide AI - Fresher Test")
 st.write("Upload brand guideline PDF + social media post to check compliance.")
 
 # --- Configure Gemini API ---
-genai.configure(api_key="")  # replace with your key or env var
+genai.configure(api_key="AIzaSyBabE4zEcG0nOiXk2GRiL2Uu-1_feMCivQ")  # replace with your key or env var
 
 def export_results_to_pdf(results, filename="compliance_report.pdf"):
     doc = SimpleDocTemplate(filename, pagesize=A4)
@@ -225,9 +225,9 @@ image_file = st.file_uploader("🖼️ Upload Social Media Post", type=["jpg", "
 
 rules_grouped = {}
 if pdf_file:
-    st.subheader("📜 Extracted Rules from PDF (via LLM)")
+    st.subheader("📜 Rules are Extracted from PDF (via LLM)")
     rules_json = extract_rules_with_llm(pdf_file)
-    st.code(rules_json, language="json")
+    # st.code(rules_json, language="json")
     rules_grouped = group_rules(rules_json)
 # --- Process Image ---
 results = {}
@@ -283,17 +283,13 @@ if results:
                 st.error(f"❌ {k}")
             else:
                 st.warning(f"{k}: {v}")
-
-
-
-
-# --- Export Results ---
-export = st.radio("Export Results As:", ["None", "JSON", "PDF"])
-if export == "JSON":
-    json_data = json.dumps(results, indent=2)
-    st.download_button("📥 Download JSON Report", json_data, file_name="report.json")
-elif export == "PDF":
-    pdf_path = "compliance_report.pdf"
-    export_results_to_pdf(results, pdf_path)
-    with open(pdf_path, "rb") as f:
-        st.download_button("📥 Download PDF Report", f, file_name="compliance_report.pdf", mime="application/pdf")
+    # --- Export Results ---
+    export = st.radio("Export Results As:", ["None", "JSON", "PDF"])
+    if export == "JSON":
+        json_data = json.dumps(results, indent=2)
+        st.download_button("📥 Download JSON Report", json_data, file_name="report.json")
+    elif export == "PDF":
+        pdf_path = "compliance_report.pdf"
+        export_results_to_pdf(results, pdf_path)
+        with open(pdf_path, "rb") as f:
+            st.download_button("📥 Download PDF Report", f, file_name="compliance_report.pdf", mime="application/pdf")
